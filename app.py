@@ -644,16 +644,23 @@ Datos crudos:
 """.strip()
 
     text = ""
-    for m in [model_name, "gemini-2.5-flash", "gemini-1.5-flash", "gemini-1.5-flash-8b"]:
+    last_error = None
+    modelos_probar = [model_name, "gemini-2.5-flash", "gemini-1.5-flash", "gemini-1.5-flash-8b"]
+
+    for m in modelos_probar:
         try:
             text = generate_with_gemini(api_key, m, prompt)
             if text:
                 break
-        except Exception:
+        except Exception as e:
+            last_error = e
             time.sleep(1)
             continue
+
     if not text:
-        raise RuntimeError("No fue posible generar el texto (modelo/cuota).")
+        detalle = f"{last_error}" if last_error is not None else "sin detalle adicional."
+        raise RuntimeError(f"No fue posible generar el texto. Detalle del error: {detalle}")
+
     return force_exact_words_spanish(text, n=500), raw
 
 def ai_short_section_summary(
