@@ -1,0 +1,7 @@
+.env
+.venv
+__pycache__/
+*.pyc
+
+ETFs_SP500_APP/
+analizador-financiero-pro/
