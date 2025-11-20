@@ -1,5 +1,5 @@
 # app.py
-# app ingenieria financiera — Yahoo Finance + Finviz + Plotly (sin SARIMAX)
+# app ingenieria financiera — Yahoo Finance + Finviz + Plotly
 # Secciones: Sectores, Resumen+Velas+Finviz, Pronósticos, Backtesting
 # + IA explicando secciones + Asistente IA de preguntas sobre los datos
 # -----------------------------------------------------------------------------
@@ -13,7 +13,8 @@
 # beautifulsoup4>=4.12
 # lxml>=4.9.3
 # plotly>=5.22
-# google-genai>=0.3.0        # (y/o) google-generativeai>=0.7.0
+# google-genai>=0.3.0
+# google-generativeai>=0.7.0
 # -----------------------------------------------------------------------------
 
 import os
@@ -199,7 +200,7 @@ _session_finviz = requests.Session()
 _session_finviz.headers.update({
     "User-Agent": ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                    "AppleWebKit/537.36 (KHTML, like Gecko) "
-                   "Chrome/124.0 Safari/537.36")
+                   "Chrome/124.0 Safari/536.36")
 })
 
 def _norm_text_bs(s: Optional[str]) -> str:
@@ -265,7 +266,6 @@ def finviz_blocks(ticker: str) -> Dict[str, Dict[str, Any]]:
         "P/E": getn("P/E"), "Forward P/E": getn("Forward P/E"), "PEG": getn("PEG"),
         "EV/Sales": getn("EV/Sales"),
         "P/B": getn("P/B"), "P/S": getn("P/S"),
-        # "P/FCF": getn("P/FCF"),  # habilitar si Finviz lo expone para el ticker
     }
     growth = {
         "ROE": getn("ROE"), "ROA": getn("ROA"),
@@ -513,8 +513,9 @@ def list_gemini_models(api_key: str) -> List[str]:
     if not api_key:
         return base
     try:
+        # usar SDK nueva con API key explícita
         from google import genai as _genai_new_check
-        client = _genai_new_check.Client()
+        client = _genai_new_check.Client(api_key=api_key)
         names = []
         for m in client.models.list():
             name = getattr(m, "name", "")
@@ -538,11 +539,13 @@ def list_gemini_models(api_key: str) -> List[str]:
 
 def generate_with_gemini(api_key: str, model_name: str, prompt: str) -> str:
     try:
+        # SDK nueva: pasamos API key directo
         from google import genai as _genai_new_use
-        client = _genai_new_use.Client()
+        client = _genai_new_use.Client(api_key=api_key)
         resp = client.models.generate_content(model=model_name, contents=prompt)
         return getattr(resp, "text", "") or ""
     except Exception:
+        # SDK “vieja” como respaldo
         import google.generativeai as _genai_old_use
         _genai_old_use.configure(api_key=api_key)
         model = _genai_old_use.GenerativeModel(model_name)
@@ -684,6 +687,11 @@ Contexto numérico y tablas (JSON):
 
 # === Configuración segura de la API Key (SOLO desde .env / st.secrets) ===
 api_key_default = get_api_key_default()
+
+# también la ponemos en GOOGLE_API_KEY por si alguna SDK la lee de ahí
+if api_key_default:
+    os.environ["GOOGLE_API_KEY"] = api_key_default
+
 gemini_api_key = api_key_default or ""
 
 with st.expander("⚙️ Estado de la IA (Gemini)", expanded=False):
@@ -695,9 +703,11 @@ with st.expander("⚙️ Estado de la IA (Gemini)", expanded=False):
 
 # Modelos disponibles (no se expone la key)
 models = list_gemini_models(gemini_api_key.strip() if gemini_api_key else "")
-preferred = "gemini-2.5-flash" if "gemini-2.5-flash" in models else (
-    "gemini-1.5-flash" if "gemini-1.5-flash" in models else models[0]
-)
+preferred = "gemini-1.5-flash"
+if "gemini-1.5-flash" in models:
+    preferred = "gemini-1.5-flash"
+elif "gemini-2.5-flash" in models:
+    preferred = "gemini-2.5-flash"
 model_name = st.selectbox("Modelo de Gemini", options=models, index=models.index(preferred))
 ticker_to_describe = st.text_input("Ticker (Yahoo) para el resumen / velas / Finviz", value=selected)
 
@@ -1215,7 +1225,7 @@ if bt_ticker:
         figb.update_yaxes(title="Crecimiento (base 1.0)")
         st.plotly_chart(figb, use_container_width=True)
 
-        # === Precio + EMAs + Cruces (visual) ===
+        # === Explicación IA del backtest ===
         with st.expander("🧠 Explicación IA del backtest EMAs"):
             if st.button("Explicar backtest con IA", key="explain_backtest"):
                 ctx_bt = {
@@ -1241,6 +1251,7 @@ if bt_ticker:
                 )
                 st.write(resumen_bt)
 
+        # === Precio + EMAs + Cruces (visual) ===
         show_price_emas = st.toggle("Ver precio + EMAs y cruces", value=True, key="show_price_emas")
         if show_price_emas:
             figc = go.Figure()
